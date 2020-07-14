@@ -10,7 +10,8 @@ from fastapi import (
     File,
     UploadFile,
     Form,
-    HTTPException
+    HTTPException,
+    Request
 )
 
 app = FastAPI(debug=True)
@@ -22,6 +23,19 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Handles GZip responses for any request that includes "gzip" in the Accept-Encoding header
+# from fastapi.middleware.gzip import GZipMiddleware
+# app.add_middleware(GZipMiddleware, minimum_size=1000)
+
+# Enforces that all incoming requests have a correctly set Host header,
+# in order to guard against HTTP Host Header attacks.
+# from fastapi.middleware.trustedhost import TrustedHostMiddleware
+# app.add_middleware(TrustedHostMiddleware,allowed_hosts=["192.168.18.80:5000"])
+
+# Any incoming requests to http or ws will be redirected to the secure scheme instead
+# from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
+# app.add_middleware(HTTPSRedirectMiddleware)
 
 @app.get('/', status_code=200)
 async def home():
@@ -53,10 +67,11 @@ class User(BaseModel):
 async def items(
         items: Items,
         user: User,
+        request: Request,
         item_id: int = Path(...,ge=2),
         q: Optional[str] = Query(None,min_length=2)):
 
-    results = {"item_id": item_id, "items": items, "user": user}
+    results = {"item_id": item_id, "items": items, "user": user, "ip": request.client.host}
     if q:
         results['q'] = q
     return results
@@ -98,6 +113,43 @@ async def class_as_dependencies(common: CommonQueryParams = Depends()):
     if common.q:
         res['q'] = common.q
     return res
+
+from fastapi.responses import RedirectResponse, StreamingResponse
+# custom response
+@app.get('/redirect-to-google')
+async def go_to_google():
+    return RedirectResponse("https://www.google.com/")
+
+@app.get('/intro-automatch')
+def automath():
+    video = open('intro.mov', mode="rb")
+    return StreamingResponse(video, media_type="video/mp4")
+
+# Advanced Dependencies
+class FixedContentQueryChecker:
+    def __init__(self,content: str):
+        self.content = content
+
+    def __call__(self,q: str = Query(..., min_length=1)):
+        if q:
+            return self.content in q
+        return False
+
+
+checker = FixedContentQueryChecker("bar")
+
+@app.get('/query-checker', status_code=200)
+async def query_checker(fixed_content: bool = Depends(checker)):
+    return {"fixed_content": fixed_content}
+
+# SIMPLE EXAMPLE async await
+async def lol():
+    return [x for x in range(100)]
+
+@app.get('/test-await',status_code=200)
+async def test_await():
+    results = await lol()
+    return results
 
 
 if __name__ == '__main__':
