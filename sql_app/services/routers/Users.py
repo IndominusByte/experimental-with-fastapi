@@ -21,8 +21,7 @@ async def create_user(user: UserCreate):
 
 @router.get('/users', status_code=200, response_model=List[UserItems])
 async def get_user():
-    users = User.query.all()
-    return users
+    return User.query.all()
 
 @router.get('/user/{user_id}', status_code=200, response_model=UserItems)
 async def get_specific_user(user_id: int = Path(..., gt=0)):

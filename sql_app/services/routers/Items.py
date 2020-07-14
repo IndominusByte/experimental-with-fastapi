@@ -12,6 +12,16 @@ class ItemUser(ItemModel):
 
 @router.post('/item/create/{user_id}', status_code=201)
 async def create_item(items: ItemCreate,user_id: int = Path(..., gt=0)):
+    """
+    Create an item with all the information:
+    - **name**: each item must have a name
+    - **description**: a long description
+    - **price**: required
+    - **tax**: if the item doesn't have tax, you can omit this
+    - **tags**: a set of unique tag strings for this item
+    \f
+    :param item: User input.
+    """
     if (user := User.query.get(user_id)):
         item_model = Item(user_id=user.id, **items.dict())
         item_model.save_to_db()
@@ -29,5 +39,4 @@ async def get_specific_item(item_id: int = Path(..., gt=0)):
 
 @router.get('/items', status_code=200, response_model=List[ItemUser])
 async def get_items():
-    items = Item.query.all()
-    return items
+    return Item.query.all()
