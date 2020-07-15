@@ -70,12 +70,15 @@ class AuthJWT:
 
         return jwt.encode(payload,AuthJWT._SECRET_KEY,algorithm=AuthJWT._ALGORITHM)
 
-    def _verified_token(self) -> None:
+    def _verified_token(self,encoded_token: Optional[bytes] = None) -> "AuthJWT":
         """
         Verified token and catch all error from jwt package
         """
         try:
-            self._DATA = jwt.decode(self._TOKEN,self._SECRET_KEY,algorithms=self._ALGORITHM)
+            if encoded_token:
+                self._DATA = jwt.decode(encoded_token,self._SECRET_KEY,algorithms=self._ALGORITHM)
+            else:
+                self._DATA = jwt.decode(self._TOKEN,self._SECRET_KEY,algorithms=self._ALGORITHM)
         except jwt.ExpiredSignatureError as err:
             raise HTTPException(status_code=422,detail=str(err))
         except jwt.DecodeError as err:
@@ -128,11 +131,11 @@ class AuthJWT:
             return self._DATA
         return None
 
-    @property
-    def get_jti(self) -> Optional[str]:
-        if self._DATA:
-            return self._DATA['jti']
-        return None
+    @classmethod
+    def get_jti(cls,encoded_token: bytes) -> str:
+        cls._verified_token(cls,encoded_token=encoded_token)
+
+        return cls._DATA['jti']
 
     @property
     def get_jwt_identity(self) -> Optional[Union[str,int]]:
