@@ -22,7 +22,6 @@ def test_jwt():
 
 @app.get('/api/v1/jwt-required')
 def check_jwt_required(Authorize: AuthJWT = Depends()):
-    print(Authorize)
     Authorize.jwt_required()
     print(Authorize.get_raw_jwt)
     print(Authorize.get_jwt_identity)

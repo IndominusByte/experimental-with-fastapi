@@ -4,7 +4,8 @@ from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict, Union
 
 class AuthJWT:
-    _EXPIRED_MINUTE_TIME = 1
+    _ACCESS_TOKEN_EXPIRES = 1
+    _REFRESH_TOKEN_EXPIRES = 1
     _SECRET_KEY = 'secretkey'
     _ALGORITHM = 'HS256'
     _TOKEN = None
@@ -39,7 +40,7 @@ class AuthJWT:
         return int(value.timestamp())
 
     @staticmethod
-    def create_token(identity: int, type_token: str, fresh: Optional[bool] = False) -> str:
+    def create_token(identity: int, type_token: str, exp_time: timedelta, fresh: Optional[bool] = False) -> bytes:
         """
         This function create token for access_token and refresh_token, when type_token
         is access add a fresh key to dictionary payload
@@ -57,8 +58,7 @@ class AuthJWT:
             "iat": AuthJWT.get_int_from_datetime(datetime.now(timezone.utc)),
             "nbf": AuthJWT.get_int_from_datetime(datetime.now(timezone.utc)),
             "jti": AuthJWT.get_jwt_id(),
-            "exp": AuthJWT.get_int_from_datetime(datetime.now(timezone.utc) +
-                timedelta(minutes=AuthJWT._EXPIRED_MINUTE_TIME)),
+            "exp": AuthJWT.get_int_from_datetime(datetime.now(timezone.utc) + exp_time),
             "identity": identity,
             "type": type_token
         }
@@ -72,6 +72,9 @@ class AuthJWT:
     def _verified_token(self,encoded_token: bytes) -> Optional[Dict[str,Union[str,int,bool]]]:
         """
         Verified token and catch all error from jwt package and return decode token
+
+        :param encoded_token: token hash
+        :return: raw data from the hash token in the form of a dictionary
         """
         try:
             return jwt.decode(encoded_token,self._SECRET_KEY,algorithms=self._ALGORITHM)
@@ -99,12 +102,33 @@ class AuthJWT:
             raise HTTPException(status_code=422,detail=str(err))
 
     @staticmethod
-    def create_access_token(identity: int, type_token: str, fresh: Optional[bool] = False) -> str:
-        return AuthJWT.create_token(identity,type_token,fresh)
+    def create_access_token(identity: Union[str,int], type_token: str, fresh: Optional[bool] = False) -> bytes:
+        """
+        Create a token with minutes for expired time, info for param and return please check to
+        function create token
+
+        :return: hash token
+        """
+        return AuthJWT.create_token(
+            identity=identity,
+            type_token=type_token,
+            fresh=fresh,
+            exp_time=timedelta(minutes=AuthJWT._ACCESS_TOKEN_EXPIRES)
+        )
 
     @staticmethod
-    def create_refresh_token(identity: int, type_token: str) -> str:
-        return AuthJWT.create_token(identity,type_token)
+    def create_refresh_token(identity: Union[str,int], type_token: str) -> bytes:
+        """
+        Create a token with days for expired time, info for param and return please check to
+        function create token
+
+        :return: hash token
+        """
+        return AuthJWT.create_token(
+            identity=identity,
+            type_token=type_token,
+            exp_time=timedelta(days=AuthJWT._REFRESH_TOKEN_EXPIRES)
+        )
 
     def jwt_required(self) -> None:
         if not self._TOKEN:
