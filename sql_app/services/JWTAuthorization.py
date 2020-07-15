@@ -8,7 +8,6 @@ class AuthJWT:
     _SECRET_KEY = 'secretkey'
     _ALGORITHM = 'HS256'
     _TOKEN = None
-    _DATA = None
 
     def __init__(self,Authorization: str = Header(None)):
         """
@@ -19,10 +18,10 @@ class AuthJWT:
         if Authorization:
             if re.match(r"Bearer\s",Authorization) and len(Authorization.split(' ')) == 2 and Authorization.split(' ')[1]:
                 self._TOKEN = Authorization.split(' ')[1]
+                # verified token
+                self._verified_token(encoded_token=self._TOKEN)
             else:
                 raise HTTPException(status_code=422,detail="Bad Authorization header. Expected value 'Bearer <JWT>'")
-
-            self._verified_token()
 
     @staticmethod
     def get_jwt_id() -> str:
@@ -70,15 +69,12 @@ class AuthJWT:
 
         return jwt.encode(payload,AuthJWT._SECRET_KEY,algorithm=AuthJWT._ALGORITHM)
 
-    def _verified_token(self,encoded_token: Optional[bytes] = None) -> "AuthJWT":
+    def _verified_token(self,encoded_token: bytes) -> Optional[Dict[str,Union[str,int,bool]]]:
         """
-        Verified token and catch all error from jwt package
+        Verified token and catch all error from jwt package and return decode token
         """
         try:
-            if encoded_token:
-                self._DATA = jwt.decode(encoded_token,self._SECRET_KEY,algorithms=self._ALGORITHM)
-            else:
-                self._DATA = jwt.decode(self._TOKEN,self._SECRET_KEY,algorithms=self._ALGORITHM)
+            return jwt.decode(encoded_token,self._SECRET_KEY,algorithms=self._ALGORITHM)
         except jwt.ExpiredSignatureError as err:
             raise HTTPException(status_code=422,detail=str(err))
         except jwt.DecodeError as err:
@@ -111,34 +107,32 @@ class AuthJWT:
         return AuthJWT.create_token(identity,type_token)
 
     def jwt_required(self) -> None:
-        if not self._DATA:
+        if not self._TOKEN:
             raise HTTPException(status_code=401,detail="Missing Authorization Header")
 
     def jwt_optional(self) -> None:
         pass
 
     def jwt_refresh_token_required(self) -> None:
-        if not self._DATA:
+        if not self._TOKEN:
             raise HTTPException(status_code=401,detail="Missing Authorization Header")
 
     def fresh_jwt_required(self) -> None:
-        if not self._DATA:
+        if not self._TOKEN:
             raise HTTPException(status_code=401,detail="Missing Authorization Header")
 
     @property
     def get_raw_jwt(self) -> Optional[Dict[str,Union[str,int,bool]]]:
-        if self._DATA:
-            return self._DATA
+        if self._TOKEN:
+            return self._verified_token(encoded_token=self._TOKEN)
         return None
 
     @classmethod
     def get_jti(cls,encoded_token: bytes) -> str:
-        cls._verified_token(cls,encoded_token=encoded_token)
-
-        return cls._DATA['jti']
+        return cls._verified_token(cls,encoded_token=encoded_token)['jti']
 
     @property
     def get_jwt_identity(self) -> Optional[Union[str,int]]:
-        if self._DATA:
-            return self._DATA['identity']
+        if self._TOKEN:
+            return self._verified_token(encoded_token=self._TOKEN)['identity']
         return None

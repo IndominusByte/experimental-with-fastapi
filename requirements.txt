@@ -6,5 +6,4 @@ jinja2
 aiofiles
 alembic
 PyJWT
-python-dotenv
 uvicorn

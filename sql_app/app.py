@@ -1,30 +1,31 @@
 import uvicorn
 from fastapi import FastAPI, Depends
 from fastapi.staticfiles import StaticFiles
-from dotenv import load_dotenv
 from services.routers import Users, Items
 from services.JWTAuthorization import AuthJWT
 
 app = FastAPI(debug=True)
-
-load_dotenv()
 
 app.mount('/static', StaticFiles(directory="services/static"), name="static")
 
 app.include_router(Users.router,prefix='/api/v1',tags=['users'])
 app.include_router(Items.router,prefix='/api/v1',tags=['items'])
 
-# MAKE JWT SYSTEM EXAMPLE
+# ========= MAKE JWT SYSTEM EXAMPLE =========
+
 @app.get('/api/v1/jwt-create')
 def test_jwt():
     access_token = AuthJWT.create_access_token(identity=5,type_token="access",fresh=True)
     refresh_token = AuthJWT.create_refresh_token(identity=5,type_token="refresh")
-    # print(AuthJWT.get_jti(encoded_token=access_token))
+    print(AuthJWT.get_jti(encoded_token=access_token))
     return {"access_token": access_token, "refresh_token": refresh_token}
 
 @app.get('/api/v1/jwt-required')
 def check_jwt_required(Authorize: AuthJWT = Depends()):
+    print(Authorize)
     Authorize.jwt_required()
+    print(Authorize.get_raw_jwt)
+    print(Authorize.get_jwt_identity)
 
 @app.get('/api/v1/jwt-optional')
 def check_jwt_optional(Authorize: AuthJWT = Depends()):
