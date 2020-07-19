@@ -2,10 +2,13 @@ import jwt, uuid, re
 from fastapi import Header, HTTPException
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict, Union
+from redis import Redis
 
 class AuthJWT:
-    _ACCESS_TOKEN_EXPIRES = 1
+    _ACCESS_TOKEN_EXPIRES = 2
     _REFRESH_TOKEN_EXPIRES = 1
+    _REDIS_DB_HOST = 'localhost'
+    _REDIS_DB_PORT = 6379
     _SECRET_KEY = 'secretkey'
     _ALGORITHM = 'HS256'
     _TOKEN = None
@@ -19,8 +22,9 @@ class AuthJWT:
         if Authorization:
             if re.match(r"Bearer\s",Authorization) and len(Authorization.split(' ')) == 2 and Authorization.split(' ')[1]:
                 self._TOKEN = Authorization.split(' ')[1]
-                # verified token
-                self._verified_token(encoded_token=self._TOKEN)
+                # verified token and check if token is revoked
+                raw_token = self._verified_token(encoded_token=self._TOKEN)
+                self._check_token_is_revoked(raw_token['jti'])
             else:
                 raise HTTPException(status_code=422,detail="Bad Authorization header. Expected value 'Bearer <JWT>'")
 
@@ -69,7 +73,7 @@ class AuthJWT:
 
         return jwt.encode(payload,AuthJWT._SECRET_KEY,algorithm=AuthJWT._ALGORITHM)
 
-    def _verified_token(self,encoded_token: bytes) -> Optional[Dict[str,Union[str,int,bool]]]:
+    def _verified_token(self,encoded_token: bytes) -> Dict[str,Union[str,int,bool]]:
         """
         Verified token and catch all error from jwt package and return decode token
 
@@ -101,6 +105,50 @@ class AuthJWT:
         except jwt.MissingRequiredClaimError as err:
             raise HTTPException(status_code=422,detail=str(err))
 
+    def _conn_redis(self) -> Redis:
+        """
+        Return connection for redis
+        """
+        return Redis(host=self._REDIS_DB_HOST, port=self._REDIS_DB_PORT, db=0,decode_responses=True)
+
+    def _check_token_is_revoked(self, jti: str) -> None:
+        """
+        If JTI exists in redis and value is true raise http exception
+
+        :param jti: key for redis db
+        :return: None
+        """
+        redis = self._conn_redis()
+        entry = redis.get(jti)
+        if entry and entry == 'true':
+            raise HTTPException(status_code=401,detail="Token has been revoked")
+
+    @classmethod
+    def revoke_access_token(cls, jti: str) -> None:
+        """
+        Store JTI (unique identifier) to redis and set expired same as create an access token expired,
+        with the value true
+
+        :param jti: key for redis db
+        :return: None
+        """
+        redis = cls._conn_redis(cls)
+        expired_time = int(timedelta(minutes=cls._ACCESS_TOKEN_EXPIRES).total_seconds())
+        redis.setex(jti,expired_time,'true')
+
+    @classmethod
+    def revoke_refresh_token(cls, jti: str) -> None:
+        """
+        Store JTI (unique identifier) to redis and set expired same as create an refresh token expired,
+        with the value true
+
+        :param jti: key for redis db
+        :return: None
+        """
+        redis = cls._conn_redis(cls)
+        expired_time = int(timedelta(days=cls._REFRESH_TOKEN_EXPIRES).total_seconds())
+        redis.setex(jti,expired_time,'true')
+
     @staticmethod
     def create_access_token(identity: Union[str,int], type_token: str, fresh: Optional[bool] = False) -> bytes:
         """
@@ -131,32 +179,69 @@ class AuthJWT:
         )
 
     def jwt_required(self) -> None:
+        """
+        Only access token can access this function
+
+        :return: None
+        """
         if not self._TOKEN:
             raise HTTPException(status_code=401,detail="Missing Authorization Header")
 
     def jwt_optional(self) -> None:
+        """
+        If an access token in present in the request you can get data from get_raw_jwt() or get_jwt_identity(),
+        If no access token is present in the request, this endpoint will still be called, but
+        get_raw_jwt() or get_jwt_identity() will return None
+
+        :return: None
+        """
         pass
 
     def jwt_refresh_token_required(self) -> None:
+        """
+        This function will ensure that the requester has a valid refresh token
+
+        :return: None
+        """
         if not self._TOKEN:
             raise HTTPException(status_code=401,detail="Missing Authorization Header")
 
     def fresh_jwt_required(self) -> None:
+        """
+        This function will ensure that the requester has a valid and fresh access token
+
+        :return: None
+        """
         if not self._TOKEN:
             raise HTTPException(status_code=401,detail="Missing Authorization Header")
 
-    @property
     def get_raw_jwt(self) -> Optional[Dict[str,Union[str,int,bool]]]:
+        """
+        this will return the python dictionary which has all of the claims of the JWT that is accessing the endpoint.
+        If no JWT is currently present, return None instead
+
+        :return: claims of JWT
+        """
         if self._TOKEN:
             return self._verified_token(encoded_token=self._TOKEN)
         return None
 
     @classmethod
     def get_jti(cls,encoded_token: bytes) -> str:
+        """
+        Returns the JTI (unique identifier) of an encoded JWT
+
+        :return: string of JTI
+        """
         return cls._verified_token(cls,encoded_token=encoded_token)['jti']
 
-    @property
     def get_jwt_identity(self) -> Optional[Union[str,int]]:
+        """
+        this will return the identity of the JWT that is accessing this endpoint.
+        If no JWT is present, `None` is returned instead.
+
+        :return: identity of JWT
+        """
         if self._TOKEN:
             return self._verified_token(encoded_token=self._TOKEN)['identity']
         return None

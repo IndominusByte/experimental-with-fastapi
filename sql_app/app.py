@@ -13,31 +13,38 @@ app.include_router(Items.router,prefix='/api/v1',tags=['items'])
 
 # ========= MAKE JWT SYSTEM EXAMPLE =========
 
-@app.get('/api/v1/jwt-create')
+@app.get('/jwt-create')
 def test_jwt():
     access_token = AuthJWT.create_access_token(identity=5,type_token="access",fresh=True)
     refresh_token = AuthJWT.create_refresh_token(identity=5,type_token="refresh")
-    print(AuthJWT.get_jti(encoded_token=access_token))
+    # print(AuthJWT.get_jti(encoded_token=access_token))
     return {"access_token": access_token, "refresh_token": refresh_token}
 
-@app.get('/api/v1/jwt-required')
+@app.get('/jwt-required')
 def check_jwt_required(Authorize: AuthJWT = Depends()):
     Authorize.jwt_required()
-    print(Authorize.get_raw_jwt)
-    print(Authorize.get_jwt_identity)
+    # print(Authorize.get_raw_jwt())
+    # print(Authorize.get_jwt_identity())
 
-@app.get('/api/v1/jwt-optional')
+@app.get('/jwt-optional')
 def check_jwt_optional(Authorize: AuthJWT = Depends()):
     Authorize.jwt_optional()
 
-@app.get('/api/v1/jwt-refresh-required')
+@app.get('/jwt-refresh-required')
 def check_jwt_refresh_required(Authorize: AuthJWT = Depends()):
     Authorize.jwt_refresh_token_required()
 
-@app.get('/api/v1/jwt-fresh-required')
+@app.get('/jwt-fresh-required')
 def check_jwt_fresh(Authorize: AuthJWT = Depends()):
     Authorize.fresh_jwt_required()
 
+@app.get('/jwt-logout')
+def jwt_logout(Authorize: AuthJWT = Depends()):
+    Authorize.jwt_required()
+    jti = Authorize.get_raw_jwt()['jti']
+    Authorize.revoke_access_token(jti)
+    # Authorize.revoke_refresh_token(jti)
+
 
 if __name__ == '__main__':
-    uvicorn.run("app:app",host="192.168.18.82", port=5000, reload=True)
+    uvicorn.run("app:app",host="192.168.18.88", port=5000, reload=True)
