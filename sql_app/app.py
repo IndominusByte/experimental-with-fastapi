@@ -45,6 +45,12 @@ def jwt_logout(Authorize: AuthJWT = Depends()):
     Authorize.revoke_access_token(jti)
     # Authorize.revoke_refresh_token(jti)
 
+@app.get('/refresh-token')
+def refresh_token(Authorize: AuthJWT = Depends()):
+    Authorize.jwt_refresh_token_required()
+    access_token = Authorize.create_access_token(identity=5,type_token="access",fresh=False)
+    return {"access_token": access_token}
+
 
 if __name__ == '__main__':
     uvicorn.run("app:app",host="192.168.18.88", port=5000, reload=True)

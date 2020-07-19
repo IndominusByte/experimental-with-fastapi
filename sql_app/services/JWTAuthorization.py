@@ -187,6 +187,9 @@ class AuthJWT:
         if not self._TOKEN:
             raise HTTPException(status_code=401,detail="Missing Authorization Header")
 
+        if self.get_raw_jwt()['type'] != 'access':
+            raise HTTPException(status_code=422,detail="Only access tokens are allowed")
+
     def jwt_optional(self) -> None:
         """
         If an access token in present in the request you can get data from get_raw_jwt() or get_jwt_identity(),
@@ -195,7 +198,8 @@ class AuthJWT:
 
         :return: None
         """
-        pass
+        if self._TOKEN and self.get_raw_jwt()['type'] != 'access':
+            raise HTTPException(status_code=422,detail="Only access tokens are allowed")
 
     def jwt_refresh_token_required(self) -> None:
         """
@@ -206,6 +210,9 @@ class AuthJWT:
         if not self._TOKEN:
             raise HTTPException(status_code=401,detail="Missing Authorization Header")
 
+        if self.get_raw_jwt()['type'] != 'refresh':
+            raise HTTPException(status_code=422,detail="Only refresh tokens are allowed")
+
     def fresh_jwt_required(self) -> None:
         """
         This function will ensure that the requester has a valid and fresh access token
@@ -214,6 +221,12 @@ class AuthJWT:
         """
         if not self._TOKEN:
             raise HTTPException(status_code=401,detail="Missing Authorization Header")
+
+        if self.get_raw_jwt()['type'] != 'access':
+            raise HTTPException(status_code=422,detail="Only access tokens are allowed")
+
+        if not self.get_raw_jwt()['fresh']:
+            raise HTTPException(status_code=401,detail="Fresh token required")
 
     def get_raw_jwt(self) -> Optional[Dict[str,Union[str,int,bool]]]:
         """
