@@ -1,8 +1,14 @@
-import uvicorn
+import uvicorn, socket
 from fastapi import FastAPI, Depends
 from fastapi.staticfiles import StaticFiles
 from services.routers import Users, Items
 from services.JWTAuthorization import AuthJWT
+
+def get_ip_address():
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.connect(("8.8.8.8", 80))
+    return s.getsockname()[0]
+
 
 app = FastAPI(debug=True)
 
@@ -53,4 +59,4 @@ def refresh_token(Authorize: AuthJWT = Depends()):
 
 
 if __name__ == '__main__':
-    uvicorn.run("app:app",host="192.168.18.88", port=5000, reload=True)
+    uvicorn.run("app:app",host=get_ip_address(), port=5000, reload=True)

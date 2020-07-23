@@ -2,7 +2,7 @@ import jwt, uuid, re
 from fastapi import Header, HTTPException
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict, Union
-from redis import Redis
+from redis import Redis, ConnectionError
 
 class AuthJWT:
     _ACCESS_TOKEN_EXPIRES = 2
@@ -24,6 +24,8 @@ class AuthJWT:
                 self._TOKEN = Authorization.split(' ')[1]
                 # verified token and check if token is revoked
                 raw_token = self._verified_token(encoded_token=self._TOKEN)
+                # if connection redis is available check token revoke
+                self._is_redis_available()
                 self._check_token_is_revoked(raw_token['jti'])
             else:
                 raise HTTPException(status_code=422,detail="Bad Authorization header. Expected value 'Bearer <JWT>'")
@@ -110,6 +112,18 @@ class AuthJWT:
         Return connection for redis
         """
         return Redis(host=self._REDIS_DB_HOST, port=self._REDIS_DB_PORT, db=0,decode_responses=True)
+
+    def _is_redis_available(self) -> None:
+        """
+        Check connection redis is ready
+
+        :return: None
+        """
+        try:
+            redis = self._conn_redis()
+            redis.ping()
+        except ConnectionError as err:
+            raise HTTPException(status_code=500,detail=f"REDIS CONNECTION -> {err}")
 
     def _check_token_is_revoked(self, jti: str) -> None:
         """
