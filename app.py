@@ -1,4 +1,4 @@
-import uvicorn
+import uvicorn, socket
 from typing import Optional, List
 from pydantic import BaseModel, Field
 from fastapi.middleware.cors import CORSMiddleware
@@ -13,6 +13,12 @@ from fastapi import (
     HTTPException,
     Request
 )
+
+def get_ip_address():
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.connect(("8.8.8.8", 80))
+    return s.getsockname()[0]
+
 
 app = FastAPI(debug=True)
 
@@ -151,6 +157,20 @@ async def test_await():
     results = await lol()
     return results
 
+"""
+Sub Applications - Mounts
+"Mounting" means adding a completely "independent" application in a specific path,
+with separate documentation and added prefix to the URL path
+"""
+subapi = FastAPI()
+
+@subapi.get("/sub")
+def read_sub():
+    return {"message": "Hello World from sub API"}
+
+
+app.mount("/subapi", subapi)
+
 
 if __name__ == '__main__':
-    uvicorn.run("app:app",host="192.168.18.80", port=5000, reload=True)
+    uvicorn.run("app:app",host=get_ip_address(), port=5000, reload=True)
